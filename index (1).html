@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b12">
+<link rel="manifest" href="./manifest.json">
+<title>@bilinmiyor98991 | Müzik & Videolar</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#08090d;color:#f5f5f5;font-family:Arial,sans-serif}
+header{text-align:center;padding:34px 16px 28px;background:linear-gradient(180deg,#151827,#08090d)}
+h1{margin:0;font-size:30px}.sub{color:#aeb3c2;margin:8px 0 18px}
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:700;cursor:pointer;background:linear-gradient(90deg,#ff2455,#9b55ff);color:white}
+.btn.secondary{background:#252a38}.btn.danger{background:#3a1821}
+.ticker{overflow:hidden;white-space:nowrap;background:#ff2455;font-weight:700;padding:9px 0}.ticker span{display:inline-block;padding-left:100%;animation:scroll 15s linear infinite}
+@keyframes scroll{to{transform:translateX(-100%)}}main{max-width:1050px;margin:auto;padding:28px 16px}
+.card{background:#11141c;border:1px solid #292d3a;border-radius:18px;padding:22px;margin-bottom:28px;box-shadow:0 10px 35px #0006}
+.login{max-width:430px;margin:18px auto}input{width:100%;padding:13px;border-radius:10px;border:1px solid #343846;background:#090b10;color:white;margin:10px 0 14px}
+h2{margin-top:0}.muted,.status{color:#9ea4b5}.admin{display:none}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type=file]{margin:0;flex:1;min-width:220px}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.item{background:#11141c;border:1px solid #292d3a;border-radius:16px;padding:14px}.name{font-size:14px;margin-bottom:10px;word-break:break-all}
+audio{width:100%;margin:8px 0}.small{font-size:12px}.hidden{display:none}.ok{color:#65e6a1}.warn{color:#ffd166}
+</style>
+</head>
+<body>
+<header>
+<h1>@bilinmiyor98991</h1><div class="sub">Müzik & Videolar</div>
+<a class="btn" href="https://www.tiktok.com/@bilinmiyor98991" target="_blank">TikTok Profilim</a>
+</header>
+<div class="ticker"><span>🎵 @bilinmiyor98991 — Müzikler ve videolar burada! &nbsp; • &nbsp; İnternet olmadan da kayıtlı müziklerini dinleyebilirsin.</span></div>
+
+<main>
+<section class="card login" id="loginBox">
+<h2>🔐 Yönetici Girişi</h2><div class="muted">Müzik/video yüklemek için yönetici şifreni gir.</div>
+<input id="password" type="password" placeholder="Yönetici şifresi" autocomplete="current-password">
+<button class="btn" id="loginBtn">🔒 Giriş Yap</button><div class="status" id="loginStatus"></div>
+</section>
+
+<section class="card admin" id="adminBox">
+<h2>🎛️ Yönetim</h2>
+<div class="row"><input id="fileInput" type="file" accept="audio/*,video/*"><button class="btn" id="uploadBtn">⬆️ Yükle</button><button class="btn secondary" id="cacheAllBtn">📥 Tüm müzikleri çevrimdışı kaydet</button><button class="btn danger" id="logoutBtn">Çıkış</button></div>
+<div class="status" id="uploadStatus">Tek dosya sınırı Supabase Free nedeniyle 50 MB.</div>
+</section>
+
+<section class="card">
+<h2>📡 Çevrimdışı kullanım</h2>
+<div class="muted">Siteyi ve müzikleri internet varken açtıktan/kaydettikten sonra, internet kesildiğinde kayıtlı parçalar cihazdan oynatılabilir. Tarayıcı verileri temizlenirse kayıtlar silinebilir.</div>
+<div class="row" style="margin-top:12px"><button class="btn secondary" id="cacheAllPublicBtn">📥 Müzikleri bu cihaza kaydet</button><span class="status" id="cacheStatus"></span></div>
+</section>
+
+<section><h2>🎵 Müzikler</h2><div id="musicList" class="gallery"></div><div id="musicStatus" class="status">Yükleniyor...</div></section>
+<section style="margin-top:28px"><h2>🎬 Videolar</h2><div id="videoList" class="gallery"></div><div id="videoStatus" class="status"></div></section>
+</main>
+<footer style="text-align:center;color:#707687;padding:30px">© @bilinmiyor98991</footer>
+
+<script>
+const SUPABASE_URL="https://qurzpylahoefpxsfuxtb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_zoyG5UkAnXKjSJQjCbM-Fw_tvDjR2oM";
+const ADMIN_EMAIL="t46349172@gmail.com";
+const BUCKET="videos", DB_NAME="bilinmiyor_offline", DB_VERSION=1, STORE="media";
+
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const $=id=>document.getElementById(id);
+
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const r=indexedDB.open(DB_NAME,DB_VERSION);
+  r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE,{keyPath:"name"})};
+  r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error);
+ });
+}
+async function saveLocal(name,blob,type){
+ const db=await openDB(); return new Promise((res,rej)=>{
+  const tx=db.transaction(STORE,"readwrite"); tx.objectStore(STORE).put({name,blob,type,updated:Date.now()});
+  tx.oncomplete=res;tx.onerror=()=>rej(tx.error);
+ });
+}
+async function getLocal(name){
+ const db=await openDB(); return new Promise((res,rej)=>{
+  const r=db.transaction(STORE).objectStore(STORE).get(name);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+ });
+}
+async function getAllLocal(){
+ const db=await openDB(); return new Promise((res,rej)=>{
+  const r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+ });
+}
+function localUrl(rec){return URL.createObjectURL(rec.blob)}
+
+async function refreshAuth(){
+ const {data:{session}}=await sb.auth.getSession();
+ $("loginBox").style.display=session?"none":"block";
+ $("adminBox").style.display=session?"block":"none";
+}
+function esc(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+
+async function listBucket(){
+ const {data,error}=await sb.storage.from(BUCKET).list("",{limit:100,sortBy:{column:"created_at",order:"desc"}});
+ return {files:(data||[]).filter(x=>x.name),error};
+}
+async function renderMedia(){
+ const local=await getAllLocal();
+ const localMap=new Map(local.map(x=>[x.name,x]));
+ const {files,error}=await listBucket();
+ $("musicList").innerHTML="";$("videoList").innerHTML="";
+ if(error && !navigator.onLine){
+   $("musicStatus").textContent="Çevrimdışı: kayıtlı müzikler gösteriliyor.";
+   const aud=local.filter(x=>x.type.startsWith("audio/"));
+   renderLocalAudio(aud); return;
+ }
+ if(error){$("musicStatus").textContent=error.message;return}
+ const audio=files.filter(f=>/\\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name));
+ const video=files.filter(f=>/\\.(mp4|webm|mov|m4v)$/i.test(f.name));
+ $("musicStatus").textContent=audio.length? "":"Henüz müzik yok.";
+ for(const f of audio){
+   const cached=localMap.get(f.name);
+   let src;
+   if(cached) src=localUrl(cached);
+   else src=sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;
+   const item=document.createElement("div");item.className="item";
+   item.innerHTML=`<div class="name">🎵 ${esc(f.name)}</div><audio controls preload="metadata" src="${src}"></audio><div class="row"><button class="btn secondary small">📥 Çevrimdışı kaydet</button><span class="status small">${cached?"✅ Cihazda kayıtlı":""}</span></div>`;
+   const b=item.querySelector("button"),st=item.querySelector(".status");
+   b.onclick=async()=>{await cacheOne(f.name,st);}; $("musicList").appendChild(item);
+ }
+ if(video.length){$("videoStatus").textContent="";for(const f of video){const u=sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;const c=document.createElement("div");c.className="item";c.innerHTML=`<div class="name">🎬 ${esc(f.name)}</div><video controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000" src="${u}"></video>`;$("videoList").appendChild(c)}} else $("videoStatus").textContent="";
+}
+function renderLocalAudio(arr){
+ $("musicList").innerHTML="";
+ for(const f of arr){const c=document.createElement("div");c.className="item";c.innerHTML=`<div class="name">🎵 ${esc(f.name)}</div><audio controls src="${localUrl(f)}"></audio><div class="status small ok">📱 Çevrimdışı kayıtlı</div>`;$("musicList").appendChild(c)}
+}
+async function cacheOne(name,statusEl){
+ try{
+  const local=await getLocal(name); if(local){if(statusEl)statusEl.textContent="✅ Zaten kayıtlı";return}
+  if(!navigator.onLine){if(statusEl)statusEl.textContent="⚠️ İnternet gerekli";return}
+  if(statusEl)statusEl.textContent="İndiriliyor...";
+  const u=sb.storage.from(BUCKET).getPublicUrl(name).data.publicUrl;
+  const r=await fetch(u); if(!r.ok)throw Error("Dosya indirilemedi");
+  const blob=await r.blob(); await saveLocal(name,blob,blob.type);
+  if(statusEl)statusEl.textContent="✅ Çevrimdışı kayıtlı";
+ }catch(e){if(statusEl)statusEl.textContent="❌ "+e.message}
+}
+async function cacheAll(){
+ if(!navigator.onLine){$("cacheStatus").textContent="İnternet bağlantısı gerekli.";return}
+ const {files,error}=await listBucket();if(error){$("cacheStatus").textContent=error.message;return}
+ const audio=files.filter(f=>/\\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name));
+ let done=0;
+ for(const f of audio){$("cacheStatus").textContent=`${done}/${audio.length} müzik kaydediliyor...`;await cacheOne(f);done++}
+ $("cacheStatus").textContent=`✅ ${done} müzik çevrimdışı kullanıma hazır.`;
+ await renderMedia();
+}
+$("loginBtn").onclick=async()=>{
+ const {error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:$("password").value});
+ $("loginStatus").textContent=error?"❌ Şifre hatalı veya giriş yapılamadı.":"";
+ if(!error){$("password").value="";await refreshAuth();await renderMedia();}
+};
+$("logoutBtn").onclick=async()=>{await sb.auth.signOut();await refreshAuth();await renderMedia()};
+$("uploadBtn").onclick=async()=>{
+ const file=$("fileInput").files[0];if(!file){$("uploadStatus").textContent="Önce dosya seç.";return}
+ if(file.size>50*1024*1024){$("uploadStatus").textContent="❌ Bu dosya 50 MB'dan büyük.";return}
+ $("uploadStatus").textContent="Yükleniyor...";
+ const path=Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+ const {error}=await sb.storage.from(BUCKET).upload(path,file,{contentType:file.type,upsert:false});
+ $("uploadStatus").textContent=error?"❌ "+error.message:"✅ Yüklendi!";
+ $("fileInput").value="";await renderMedia();
+};
+$("cacheAllBtn").onclick=cacheAll;$("cacheAllPublicBtn").onclick=cacheAll;
+sb.auth.onAuthStateChange(()=>refreshAuth());
+if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
+refreshAuth();renderMedia();
+</script>
+</body></html>
