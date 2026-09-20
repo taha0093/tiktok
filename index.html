@@ -110,18 +110,41 @@ async function renderMedia(){
    renderLocalAudio(aud); return;
  }
  if(error){$("musicStatus").textContent=error.message;return}
- const audio=files.filter(f=>/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name));
-  const video=files.filter(f=>/\.(mp4|webm|mov|m4v)$/i.test(f.name));
- $("musicStatus").textContent=audio.length? "":"Henüz müzik yok.";
- for(const f of audio){
-   const cached=localMap.get(f.name);
-   let src;
-   if(cached) src=localUrl(cached);
-   else src=sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;
-   const item=document.createElement("div");item.className="item";
-   item.innerHTML=`<div class="name">🎵 ${esc(f.name)}</div><audio controls preload="metadata" src="${src}"></audio><div class="row"><button class="btn secondary small">📥 Çevrimdışı kaydet</button><span class="status small">${cached?"✅ Cihazda kayıtlı":""}</span></div>`;
-   const b=item.querySelector("button"),st=item.querySelector(".status");
-   b.onclick=async()=>{await cacheOne(f.name,st);}; $("musicList").appendChild(item);
+const audio=files.filter(f=>
+  /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name) ||
+  f.metadata?.mimetype?.startsWith("audio/")
+);
+const video=files.filter(f=>
+  /\.(mp4|webm|mov|m4v)$/i.test(f.name) ||
+  f.metadata?.mimetype?.startsWith("video/")
+);
+
+$("#musicStatus").textContent=audio.length?"":"Henüz müzik yok.";
+
+for(const f of audio){
+  const cached=await getLocal(f.name);
+  let src;
+  if(cached) src=localUrl(cached);
+  else src=sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;
+
+  const item=document.createElement("div");
+  item.className="item";
+  item.innerHTML=`
+    <div class="name">🎵 ${esc(f.name)}</div>
+    <audio controls preload="metadata" src="${src}"></audio>
+    <div class="row">
+      <button class="btn secondary small">📥 Çevrimdışı kaydet</button>
+      <span class="status"></span>
+    </div>`;
+
+  const b=item.querySelector("button");
+  const st=item.querySelector(".status");
+  b.onclick=async()=>{
+    await cacheOne(f.name,st);
+  };
+
+  $("#musicList").appendChild(item);
+}
  }
  if(video.length){$("videoStatus").textContent="";for(const f of video){const u=sb.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl;const c=document.createElement("div");c.className="item";c.innerHTML=`<div class="name">🎬 ${esc(f.name)}</div><video controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000" src="${u}"></video>`;$("videoList").appendChild(c)}} else $("videoStatus").textContent="";
 }
