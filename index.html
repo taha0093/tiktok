@@ -110,8 +110,8 @@ async function renderMedia(){
    renderLocalAudio(aud); return;
  }
  if(error){$("musicStatus").textContent=error.message;return}
- const audio=files.filter(f=>/\\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name));
- const video=files.filter(f=>/\\.(mp4|webm|mov|m4v)$/i.test(f.name));
+ const audio=files.filter(f=>/\\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(f.name)
+  const video=files.filter(f=>/\.(mp4|webm|mov|m4v)$/i.test(f.name));
  $("musicStatus").textContent=audio.length? "":"Henüz müzik yok.";
  for(const f of audio){
    const cached=localMap.get(f.name);
